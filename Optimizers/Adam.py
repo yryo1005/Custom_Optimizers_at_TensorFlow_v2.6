@@ -8,7 +8,7 @@ Created on Sat Aug 28 11:16:20 2021
 from tensorflow import keras
 import tensorflow as tf
 
-class Custom_Adam(keras.optimizers.Optimizer):
+class Adam(keras.optimizers.Optimizer):
     def __init__(self, learning_rate = 0.001, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-7,name = "Adam", **kwargs):
         super().__init__(name, **kwargs)
         self._set_hyper("learning_rate", kwargs.get("lr", learning_rate))
