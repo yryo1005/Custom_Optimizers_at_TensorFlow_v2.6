@@ -189,7 +189,7 @@ class NADIAN_Alt(keras.optimizers.Optimizer):
         
         var.assign( tmp_var + lr * ((1 / beta - alpha) * tmp_var - z / beta - beta * grad) )
         z.assign( z + lr * ((1 / beta - alpha) * tmp_var - z / beta) )
-        past_var.assgin( tmp_var )
+        past_var.assign( tmp_var )
 
     
     def get_config(self):
