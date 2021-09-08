@@ -71,6 +71,7 @@ class NADIAN_Alt(keras.optimizers.Optimizer):
         for var in var_list:
             self.add_slot(var, 'z')
             self.add_slot(var, "tmp_var")
+            self.add_slot(var, "past_var")
     
     def minimize(self, loss, var_list, grad_loss=None, name=None, tape=None):
         # var(パラメータ)をネステロフ勾配の形に変換するメソッド
@@ -111,12 +112,12 @@ class NADIAN_Alt(keras.optimizers.Optimizer):
 
         mu = self._get_hyper("momentum")
 
-        velocity = self.get_slot(var, "velocity")
+        past_var = self.get_slot(var, "past_var")
         tmp_var = self.get_slot(var, "tmp_var")
         # tmp_varに現在の値を保持しておく
         tmp_var.assign(var)
         # var自体はネステロフ勾配の形に更新
-        var.assign(var + mu * velocity)
+        var.assign(var + mu * (var - past_var))
                             
     """------------------------------------------"""
     
