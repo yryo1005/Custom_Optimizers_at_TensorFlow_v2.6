@@ -1,14 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Oct  6 09:31:17 2021
-
-@author: yryo1
-
-Caution
-ML_MoQ only works with full-batch
-
-"""
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -80,7 +69,7 @@ class NullContextmanager(object):
         return False
 
 class ML_MoQ(keras.optimizers.Optimizer):
-    def __init__(self, lr = 1.0, mu = 0.9, max_mu = 0.999, adaptive_mu = True, name = "ML_MoQ", **kwargs):
+    def __init__(self, lr = 1.0, mu = 0.9, max_mu = 0.999, adaptive_mu = True, amendment = False, name = "ML_MoQ", **kwargs):
         super().__init__(name, **kwargs)
         # Ml_MoQ関連のハイパーパラメータ
         self._set_hyper("theta", 0.0)
@@ -101,9 +90,11 @@ class ML_MoQ(keras.optimizers.Optimizer):
             self._set_hyper("mu", tf.Variable(0.0))
         else:
             self._set_hyper("mu", mu)
+        self.adaptive_mu = adaptive_mu
 
-        self._set_hyper("norm", tf.Variable(0.0))
         self.initial_loss = 0.0
+
+        self.amendment = amendment
 
     def _create_slots(self, var_list):
         for var in var_list:
@@ -114,49 +105,39 @@ class ML_MoQ(keras.optimizers.Optimizer):
             self.add_slot(var, 'g')
             self.add_slot(var, 's')
             self.add_slot(var, 'y')
+            self.add_slot(var, 'z')
     
     def minimize(self, loss, var_list, grad_loss=None, name=None, tape=None):
         grads_and_vars = self._compute_gradients(loss, var_list=var_list, grad_loss=grad_loss, tape=tape)
-        self.apply_mu(loss, grads_and_vars)
+        self.apply_mu(loss, [g for (g, _) in grads_and_vars])
         return self.apply_gradients(grads_and_vars)
     
     """ ------------------------------------------------------------------------"""
     # Adaptive_mu
     @tf.function
-    def apply_mu(self, loss, grads_and_vars):
-        if self.iterations == 0: 
+    def apply_mu(self, loss, grads):
+        if self.initial_loss == 0: 
             self.initial_loss = loss
-        else:
-            grads = [g for (g, v) in grads_and_vars]
-            var_list = [v for (g, v) in grads_and_vars]
-            
+        elif self.adaptive_mu:            
             len_param = 0
-            for var in var_list:
+            for var in grads:
                 len_param += int(tf.size(var))
-            norm = self._get_hyper("norm")
+                
             x = 0.0
             for g in grads:
                 x += tf.math.reduce_sum(tf.math.square(g))
-            norm.assign(tf.math.sqrt(x) / tf.cast(len_param, "float32"))
-
-            if self.iterations == 0:
-                self._set_hyper("initial_loss", loss)
-            initial_loss = self._get_hyper("initial_loss")
-            
-            norm = self._get_hyper("norm")
-            # initial_lossの初期化前は処理をしない
-            if self._get_hyper("initial_loss") == 0.0: pass
+            norm = tf.math.sqrt(x) / float(len_param)
 
             # 初期のlossより大きいときmuを初期化する
-            elif initial_loss < loss:
+            if self.initial_loss < loss:
                 self._set_hyper("pre_mu", 1.0)
                 pre_mu = self._get_hyper("pre_mu")
                 mu_q = self._get_hyper("mu_q")
                 post_accePara = self._get_hyper("post_accePara", 1.0)
                 post_accePara.assign((mu_q - pre_mu ** 2 + (((pre_mu ** 2 - mu_q) ** 2) + 4.0 * pre_mu ** 2) ** (1 / 2)) * 0.5)
                 self._set_hyper("mu", 0.0) 
-            
-            elif norm < 1e-2:
+
+            if True:#norm < 1e-2:
                 mu = self._get_hyper("mu")
                 mu_q = self._get_hyper("mu_q")
                 pre_mu = self._get_hyper("pre_mu")
@@ -164,12 +145,13 @@ class ML_MoQ(keras.optimizers.Optimizer):
                 pre_mu.assign(post_accePara)
                 post_accePara.assign( (mu_q - pre_mu ** 2 + ((pre_mu ** 2 - mu_q) ** 2 + 4.0 * pre_mu ** 2) ** (1 / 2)) * 0.5 )
                 mu.assign( pre_mu * (1.0 - pre_mu) / (pre_mu ** 2 + post_accePara) )
-                
+
             mu = self._get_hyper("mu")
             Max_mu = self._get_hyper("Max_mu")
             if mu > Max_mu: mu.assign(Max_mu)
 
     """ ------------------------------------------------------------------------"""
+    # Ml_MoQ
     # Ml_MoQ
     def apply_gradients(self, grads_and_vars, name=None, experimental_aggregate_gradients=True):
         grads_and_vars = optimizer_utils.filter_empty_gradients(grads_and_vars)
@@ -260,6 +242,9 @@ class ML_MoQ(keras.optimizers.Optimizer):
     def prepare_apply(self, grads_and_vars):
         mu = self._get_hyper("mu")
 
+        tmp_ZS = 0.0
+        tmp_SS = 0.0
+        norm_g = 0.0
         tmp_SG = 0.0
         tmp_YG = 0.0
         tmp_SY = 0.0
@@ -268,8 +253,25 @@ class ML_MoQ(keras.optimizers.Optimizer):
         for grad, var in grads_and_vars:
             one_past_grad = self.get_slot(var, "one_past_grad")
             two_past_grad = self.get_slot(var, "two_past_grad")
+            z = self.get_slot(var, "z")
+            z_t = z.assign( grad - ( (1 + mu) * one_past_grad - mu * two_past_grad)  )
+
+            tmp_ZS += tf.reduce_sum( self.get_slot(var, "s") * z_t )
+            tmp_SS += tf.reduce_sum( self.get_slot(var, "s") * self.get_slot(var, "s") )
+            norm_g += tf.reduce_sum( grad * grad )
+
+        w = 2.0 if norm_g > 1e-2 else 100.0
+        delta = tf.maximum(tmp_ZS / tmp_SS, 0)
+        xi = w * tf.math.sqrt(norm_g) + delta
+
+        for grad, var in grads_and_vars:
             y = self.get_slot(var, "y")
-            y_t = y.assign( grad - ( (1 + mu) * one_past_grad - mu * two_past_grad ))
+            y = self.get_slot(var, "y")
+            if self.amendment:
+                y_t = y.assign( self.get_slot(var, "z") + xi * self.get_slot(var, "s") )
+            else:
+                y_t = y.assign( self.get_slot(var, "z") )
+            one_past_grad = self.get_slot(var, "one_past_grad")
             g = self.get_slot(var, "g")
             g_t = g.assign( (1 + mu) * grad - mu * one_past_grad )
 
@@ -294,6 +296,8 @@ class ML_MoQ(keras.optimizers.Optimizer):
         lr = self._get_hyper("lr")
         mu = self._get_hyper("mu")
         theta = self._get_hyper("theta")
+        if theta < 0: theta = lr
+        elif theta > 1: 1
 
         sg = self._get_hyper("sg")
         yg = self._get_hyper("yg")
