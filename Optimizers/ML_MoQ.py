@@ -137,7 +137,7 @@ class ML_MoQ(keras.optimizers.Optimizer):
                 post_accePara.assign((mu_q - pre_mu ** 2 + (((pre_mu ** 2 - mu_q) ** 2) + 4.0 * pre_mu ** 2) ** (1 / 2)) * 0.5)
                 self._set_hyper("mu", 0.0) 
 
-            if True:#norm < 1e-2:
+            if norm < 1e-2:
                 mu = self._get_hyper("mu")
                 mu_q = self._get_hyper("mu_q")
                 pre_mu = self._get_hyper("pre_mu")
@@ -151,7 +151,6 @@ class ML_MoQ(keras.optimizers.Optimizer):
             if mu > Max_mu: mu.assign(Max_mu)
 
     """ ------------------------------------------------------------------------"""
-    # Ml_MoQ
     # Ml_MoQ
     def apply_gradients(self, grads_and_vars, name=None, experimental_aggregate_gradients=True):
         grads_and_vars = optimizer_utils.filter_empty_gradients(grads_and_vars)
