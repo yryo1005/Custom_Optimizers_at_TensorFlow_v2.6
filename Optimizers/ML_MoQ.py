@@ -118,7 +118,7 @@ class ML_MoQ(keras.optimizers.Optimizer):
     def apply_mu(self, loss, grads):
         if self.initial_loss == 0: 
             self.initial_loss = loss
-        elif self.adaptive_mu:            
+        if self.adaptive_mu:            
             len_param = 0
             for var in grads:
                 len_param += int(tf.size(var))
