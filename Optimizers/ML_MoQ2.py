@@ -68,7 +68,7 @@ class NullContextmanager(object):
     def __exit__(self, type_arg, value_arg, traceback_arg):
         return False
 
-class ML_MoQ(keras.optimizers.Optimizer):
+class ML_MoQ2(keras.optimizers.Optimizer):
     """ Optimizer that implements the ML_MoQ algorithm
     
     ML_QN(Memorry Less Quasi-Newton Method), the previous study of ML_MoQ, 
@@ -78,7 +78,7 @@ class ML_MoQ(keras.optimizers.Optimizer):
     This work, ML_MoQ(Memorry Less Momentum Quasi-Newton Method) is 
     acceraleted ML_QN by introducing momentum term.
     """
-    def __init__(self, lr = 1.0, adaptive_mu = True, mu = 0.9, max_mu = 0.999, amendment = False, apply_theta = False, name = "ML_MoQ", **kwargs):
+    def __init__(self, lr = 1.0, adaptive_mu = True, mu = 0.9, max_mu = 0.999, amendment = False, apply_theta = False, name = "ML_MoQ2", **kwargs):
         
         """
         Args:
