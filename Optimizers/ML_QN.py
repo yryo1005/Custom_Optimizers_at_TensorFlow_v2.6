@@ -69,7 +69,7 @@ class NullContextmanager(object):
         return False
 
 class ML_QN(keras.optimizers.Optimizer):
-    def __init__(self, lr = 1.0, amendment = False, name = "ML_QN", **kwargs):
+    def __init__(self, lr = 1.0, amendment = False, apply_theta = False, name = "ML_QN", **kwargs):
         super().__init__(name, **kwargs)
         # Ml_MoQ関連のハイパーパラメータ
         self._set_hyper("theta", 0.0)
@@ -80,6 +80,7 @@ class ML_QN(keras.optimizers.Optimizer):
 
         self._set_hyper("lr", lr)
         self.amendment = amendment
+        self.apply_theta = apply_theta
 
     def _create_slots(self, var_list):
         for var in var_list:
@@ -232,8 +233,10 @@ class ML_QN(keras.optimizers.Optimizer):
         lr = self._get_hyper("lr")
 
         theta = self._get_hyper("theta")
-        if theta < 0: theta = lr
-        elif theta > 1: 1
+        
+        if self.apply_theta:
+            if theta < 0: theta = lr
+            elif theta > 1: 1
 
         sg = self._get_hyper("sg")
         yg = self._get_hyper("yg")
